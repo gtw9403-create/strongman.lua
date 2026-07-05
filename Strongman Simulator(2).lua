@@ -65,7 +65,6 @@ local function md5(msg)
     return hexle(a0) .. hexle(b0) .. hexle(c0) .. hexle(d0)
 end
 
-
 local function resolveRemote(friendly)
     local jid = game.JobId
     local name = md5(friendly .. (jid == "" and "00000000-0000-0000-0000-000000000000" or jid))
@@ -179,7 +178,7 @@ local function giveEnergy(target)
 end
 
 ---------------------------------------------------------------------- 
--- GUI Responsif dan Mobile Friendly
+-- GUI
 ---------------------------------------------------------------------- 
 local function resolveParent()
     if gethui then
@@ -209,7 +208,7 @@ if syn and syn.protect_gui then pcall(syn.protect_gui, gui) end
 local window = Instance.new("Frame")
 window.AnchorPoint = Vector2.new(0.5, 0.5)
 window.Position = UDim2.fromScale(0.5, 0.5)
-window.Size = UDim2.fromScale(0.8, 0.8) -- Ubah dari Offset ke Scale
+window.Size = UDim2.fromOffset(330, 328)
 window.BackgroundColor3 = Color3.fromRGB(0, 122, 255)
 window.BorderSizePixel = 0
 window.Parent = gui
@@ -221,12 +220,7 @@ stroke.Color = Color3.fromRGB(0, 122, 255)
 stroke.Transparency = 0.25
 
 local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 0.08) -- Lebih kecil, 8% dari tinggi layar
-titleBar.Size = UDim2.new(1, 0, 0.1, 0) -- Alternatif, 10% dari tinggi layar
-titleBar.Size = UDim2.new(1, 0, 0.1, 0) -- set sesuai kebutuhan
-titleBar.Size = UDim2.new(1, 0, 0.1, 0) -- pastikan sesuai
-titleBar.Size = UDim2.new(1, 0, 0.1, 0) -- konsisten
-titleBar.Size = UDim2.new(1, 0, 0.1, 0)
+titleBar.Size = UDim2.new(1, 0, 0, 40)
 titleBar.BackgroundTransparency = 1
 titleBar.Parent = window
 
@@ -235,7 +229,7 @@ title.BackgroundTransparency = 1
 title.Position = UDim2.fromOffset(16, 0)
 title.Size = UDim2.new(1, -56, 1, 0)
 title.Font = Enum.Font.GothamBold
-title.TextSize = 14
+title.TextSize = 16
 title.TextColor3 = Color3.fromRGB(235, 240, 250)
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Text = "BUATAN AKBAR"
@@ -247,7 +241,7 @@ closeBtn.Position = UDim2.new(1, -12, 0.5, 0)
 closeBtn.Size = UDim2.fromOffset(26, 26)
 closeBtn.BackgroundColor3 = Color3.fromRGB(40, 22, 28)
 closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 14 -- Kurangi dari 16 ke 14
+closeBtn.TextSize = 16
 closeBtn.TextColor3 = BAD
 closeBtn.Text = "x"
 closeBtn.AutoButtonColor = true
@@ -255,11 +249,11 @@ closeBtn.Parent = titleBar
 Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
 
 local status = Instance.new("TextLabel")
-status.Position = UDim2.fromOffset(16, 0.288 * 328) -- Sesuaikan posisi dengan ukuran baru
+status.Position = UDim2.fromOffset(16, 288)
 status.Size = UDim2.new(1, -32, 0, 28)
 status.BackgroundTransparency = 1
 status.Font = Enum.Font.GothamMedium
-status.TextSize = 12 -- Kurangi dari 14 ke 12
+status.TextSize = 14
 status.TextColor3 = MUTED
 status.TextXAlignment = Enum.TextXAlignment.Left
 status.TextWrapped = true
@@ -300,7 +294,7 @@ local function runTask(box, btn, label, unit, worker)
     end)
 end
 
-local function buatBaris(yPos, ru, en, labelBtn, warnaBtn, satuan, worker)
+local function buatBaris(yPos, ru, en, labelBtn, warnaBtn, satuan, worker, teksDefault)
     local label = Instance.new("TextLabel")
     label.Position = UDim2.fromOffset(16, yPos)
     label.Size = UDim2.new(1, -32, 0, 34)
@@ -319,11 +313,11 @@ local function buatBaris(yPos, ru, en, labelBtn, warnaBtn, satuan, worker)
     box.Size = UDim2.new(1, -32, 0, 38)
     box.BackgroundColor3 = Color3.fromRGB(20, 26, 42)
     box.Font = Enum.Font.GothamMedium
-    box.TextSize = 14 -- Kurangi dari 16 ke 14
+    box.TextSize = 16
     box.TextColor3 = Color3.fromRGB(235, 240, 250)
     box.PlaceholderText = "0-Nan#Nan"
     box.PlaceholderColor3 = MUTED
-    box.Text = ""
+    box.Text = teksDefault or ""
     box.ClearTextOnFocus = false
     box.TextXAlignment = Enum.TextXAlignment.Left
     box.Parent = window
@@ -341,12 +335,12 @@ local function buatBaris(yPos, ru, en, labelBtn, warnaBtn, satuan, worker)
         btn.Size = ukuran
         btn.BackgroundColor3 = warna
         btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 14 -- Kurangi dari 15 ke 14
+        btn.TextSize = 15
         btn.TextColor3 = Color3.fromRGB(8, 16, 12)
         btn.Text = label
         btn.AutoButtonColor = true
         btn.Parent = window
-        track(btn.MouseButton1Click:Connect(function() runTask(box, btn, label, satuan, worker) end))
+        track(btn.MouseButton1Click:Connect(function() runTask(box, btn, label, satuan, workerFungsi) end))
         return btn
     end
 
