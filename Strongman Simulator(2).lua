@@ -345,29 +345,17 @@ local function buatBaris(yPos, ru, en, labelBtn, warnaBtn, satuan, worker, teksD
     end
 
     local btnUtama
-    if worker then
+    if workerExtra then
         local setengahLebar = 145 -- (330 window - 32 margin - 8 jarak) / 2
         btnUtama = tambahTombol(16, UDim2.fromOffset(setengahLebar, 36), labelBtn, warnaBtn, worker)
+        tambahTombol(16 + setengahLebar + 8, UDim2.fromOffset(setengahLebar, 36), labelExtra, warnaExtra, workerExtra)
     else
         btnUtama = tambahTombol(16, UDim2.new(1, -32, 0, 36), labelBtn, warnaBtn, worker)
     end
 
-    -- Setup input handling
-    local function setupInputHandlers()
-        -- Panggil runTask saat fokus hilang (khusus mobile)
-        box.FocusLost:Connect(function(enter)
-            if enter then runTask(box, btnUtama, labelBtn, satuan, worker) end
-        end)
-
-        -- Tambahkan juga event InputBegan dan InputEnded untuk deteksi selesai mengetik
-        track(box.InputBegan:Connect(function(input, gameProcessed)
-            if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard then
-                -- Bisa tambahkan logika jika ingin otomatis trigger saat Enter
-            end
-        end))
-    end
-
-    setupInputHandlers()
+    track(box.FocusLost:Connect(function(enter)
+        if enter then runTask(box, btnUtama, labelBtn, satuan, worker) end
+    end))
 end
 
 buatBaris(46, "Berapa energi?", "How much energy to give?",
@@ -380,6 +368,7 @@ buatBaris(46, "Berapa energi?", "How much energy to give?",
 -- buatBaris(166, "Berapa kekuatan?", "How much strength to give?",
 --     "Berikan Kekuatan", STR, "kekuatan", giveStrength, "555555",
 --     "Cepat", Color3.fromRGB(224, 108, 96), giveStrengthFast)
+
 -- onStrengthCaptured = function()
 --     setStatus("✅ Remote kekuatan siap — bisa dikirim", GOOD)
 -- end
@@ -393,6 +382,8 @@ end
 -- Fungsi unload
 ---------------------------------------------------------------------- 
 local function unload()
+    hookActive = false
+    State.alive = false
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
     table.clear(connections)
     if gui then gui:Destroy() end
@@ -437,4 +428,4 @@ track(LocalPlayer.Idled:Connect(function()
         VirtualUser:CaptureController()
         VirtualUser:ClickButton2(Vector2.new())
     end)
-end))
+end)) 
