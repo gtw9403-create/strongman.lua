@@ -1,431 +1,1175 @@
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local VirtualUser = game:GetService("VirtualUser")
-local LocalPlayer = Players.LocalPlayer
-
-local connections = {}
-local function track(c) connections[#connections + 1] = c; return c end
-
----------------------------------------------------------------------- 
--- Resolver remote hash (tanpa ketergantungan, executor-agnostic)
----------------------------------------------------------------------- 
-local function md5(msg)
-    local K = {
-        0xd76aa478,0xe8c7b756,0x242070db,0xc1bdceee,0xf57c0faf,0x4787c62a,0xa8304613,0xfd469501,
-        0x698098d8,0x8b44f7af,0xffff5bb1,0x895cd7be,0x6b901122,0xfd987193,0xa679438e,0x49b40821,
-        0xf61e2562,0xc040b340,0x265e5a51,0xe9b6c7aa,0xd62f105d,0x02441453,0xd8a1e681,0xe7d3fbc8,
-        0x21e1cde6,0xc33707d6,0xf4d50d87,0x455a14ed,0xa9e3e905,0xfcefa3f8,0x676f02d9,0x8d2a4c8a,
-        0xfffa3942,0x8771f681,0x6d9d6122,0xfde5380c,0xa4beea44,0x4bdecfa9,0xf6bb4b60,0xbebfbc70,
-        0x289b7ec6,0xeaa127fa,0xd4ef3085,0x04881d05,0xd9d4d039,0xe6db99e5,0x1fa27cf8,0xc4ac5665,
-        0xf4292244,0x432aff97,0xab9423a7,0xfc93a039,0x655b59c3,0x8f0ccc92,0xffeff47d,0x85845dd1,
-        0x6fa87e4f,0xfe2ce6e0,0xa3014314,0x4e0811a1,0xf7537e82,0xbd3af235,0x2ad7d2bb,0xeb86d391,
-    }
-    local S = {
-        7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
-        5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
-        4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
-        6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21,
-    }
-    local band, bor, bxor, bnot, lrotate = bit32.band, bit32.bor, bit32.bxor, bit32.bnot, bit32.lrotate
-    local a0, b0, c0, d0 = 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476
-    local bitLen = #msg * 8
-    msg = msg .. "\128"
-    while (#msg % 64) ~= 56 do msg = msg .. "\0" end
-    local function w32le(n) return string.char(n % 256, math.floor(n / 256) % 256, math.floor(n / 65536) % 256, math.floor(n / 16777216) % 256) end
-    msg = msg .. w32le(bitLen % 0x100000000) .. w32le(math.floor(bitLen / 0x100000000) % 0x100000000)
-    for chunk = 1, #msg, 64 do
-        local M = {}
-        for j = 0, 15 do
-            local p = chunk + j * 4
-            local b1, b2, b3, b4 = string.byte(msg, p, p + 3)
-            M[j] = b1 + b2 * 256 + b3 * 65536 + b4 * 16777216
-        end
-        local A, B, C, D = a0, b0, c0, d0
-        for i = 0, 63 do
-            local F, g
-            if i < 16 then F = bor(band(B, C), band(bnot(B), D)); g = i
-            elseif i < 32 then F = bor(band(D, B), band(bnot(D), C)); g = (5 * i + 1) % 16
-            elseif i < 48 then F = bxor(bxor(B, C), D); g = (3 * i + 5) % 16
-            else F = bxor(C, bor(B, bnot(D))); g = (7 * i) % 16 end
-            F = (F + A + K[i + 1] + M[g]) % 0x100000000
-            A, D, C, B = D, C, B, (B + lrotate(F, S[i + 1])) % 0x100000000
-        end
-        a0 = (a0 + A) % 0x100000000
-        b0 = (b0 + B) % 0x100000000
-        c0 = (c0 + C) % 0x100000000
-        d0 = (d0 + D) % 0x100000000
-    end
-    local function hexle(n)
-        local s = ""
-        for i = 0, 3 do s = s .. string.format("%02x", math.floor(n / (256 ^ i)) % 256) end
-        return s
-    end
-    return hexle(a0) .. hexle(b0) .. hexle(c0) .. hexle(d0)
+local function _0x0000()
+if (2 * 3 > 5) and type(debug) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local function _0x0005(_0x0006)
+if (2 * 3 > 5) and _0x0006 > 0 then
+return _0x0006 * 2
+else
+return 0
 end
-
-local function resolveRemote(friendly)
-    local jid = game.JobId
-    local name = md5(friendly .. (jid == "" and "00000000-0000-0000-0000-000000000000" or jid))
-    return ReplicatedStorage:FindFirstChild(name) or ReplicatedStorage:WaitForChild(name, 8)
 end
-
----------------------------------------------------------------------- 
--- Binding game
----------------------------------------------------------------------- 
-local TGSMisc do
-    local ok, m = pcall(function() return require(workspace.Lib.TGSMisc) end)
-    TGSMisc = ok and m or nil
-end
-
-local Items, ItemCat do
-    local ok, m = pcall(function() return require(workspace.Lib.Items.TGSItems) end)
-    Items = ok and m or nil
-    local ok2, c = pcall(function() return require(workspace.Lib.Items.ItemCategoryEnum) end)
-    ItemCat = ok2 and c or nil
-end
-
-local CURRENCY_TARGET = "Currency_Knivsta" -- 3 Knivsta = 1 Energi
-local RATIO = 3
-local GIVE_KEY = "Default"
-
-local function getConverter()
-    local r = resolveRemote("CurrencyConverter_ExchangeCurrencyFund")
-    if r then return r end
-    if TGSMisc and TGSMisc.RemoteFunction then
-        local ok, r2 = pcall(TGSMisc.RemoteFunction, "CurrencyConverter_ExchangeCurrencyFund")
-        if ok and typeof(r2) == "Instance" then return r2 end
-    end
-    return nil
-end
-
-local function readCurrency(kunci)
-    if not Items or not ItemCat then return nil end
-    local ok, v = pcall(Items.GetItemInfo, LocalPlayer, ItemCat.Currency, kunci)
-    if ok and type(v) == "number" then return v end
-    return nil
-end
-
-local function readEnergy() return readCurrency(GIVE_KEY) end
-local function readKnivsta() return readCurrency("Knivsta") end
-
----------------------------------------------------------------------- 
--- Parsing jumlah: 1k · 1000 · 1.5m · 1sx · 1sp · 2kk · 1.000.000
----------------------------------------------------------------------- 
-local SUFFIX = {
-    [""] = 1,
-    k = 1e3, m = 1e6, b = 1e9, t = 1e12,
-    qd = 1e15, qn = 1e18, sx = 1e21, sp = 1e24, oc = 1e27, no = 1e30,
-    dc = 1e33, ud = 1e36, dd = 1e39, td = 1e42, qad = 1e45, qnd = 1e48,
-    sxd = 1e51, spd = 1e54, ocd = 1e57, nod = 1e60,
-    vg = 1e63, uvg = 1e66, dvg = 1e69, tvg = 1e72, qavg = 1e75,
-    qnvg = 1e78, sxvg = 1e81, spvg = 1e84, ocvg = 1e87, novg = 1e90,
-    kk = 1e6, kkk = 1e9, q = 1e15, qa = 1e15, qi = 1e18,
-    thousand = 1e3, million = 1e6, billion = 1e9, trillion = 1e12,
-}
-
-local function parseAmount(input)
-    if type(input) ~= "string" then return nil end
-    local s = input:lower():gsub("%s+", ""):gsub(",", ""):gsub("_", "")
-    if s == "" then return nil end
-    local num, suf = s:match("^(%d*%.?%d+)([a-z]*)$")
-    if not num then return nil end
-    local mult = SUFFIX[suf]
-    if not mult then return nil end
-    local n = tonumber(num)
-    if not n then return nil end
-    local total = n * mult
-    if total <= 0 then return nil end
-    return math.floor(total + 0.5)
-end
-
-local SCALE = {
-    {1e90, "NoVg"}, {1e87, "OcVg"}, {1e84, "SpVg"}, {1e81, "SxVg"}, {1e78, "QnVg"}, {1e75, "QaVg"},
-    {1e72, "TVg"}, {1e69, "DVg"}, {1e66, "UVg"}, {1e63, "Vg"}, {1e60, "NoD"}, {1e57, "OcD"},
-    {1e54, "SpD"}, {1e51, "SxD"}, {1e48, "QnD"}, {1e45, "QaD"}, {1e42, "Td"}, {1e39, "Dd"},
-    {1e36, "Ud"}, {1e33, "Dc"}, {1e30, "No"}, {1e27, "Oc"}, {1e24, "Sp"}, {1e21, "Sx"},
-    {1e18, "Qn"}, {1e15, "Qd"}, {1e12, "T"}, {1e9, "B"}, {1e6, "M"}, {1e3, "K"},
-}
-
-local function fmt(n)
-    for _, e in ipairs(SCALE) do
-        if n >= e[1] then return string.format("%.2f%s", n / e[1], e[2]) end
-    end
-    return tostring(math.floor(n))
-end
-
----------------------------------------------------------------------- 
--- Memberikan energi (minimal Knivsta, lewat bypass tanda, lalu konversi)
----------------------------------------------------------------------- 
-local State = { busy = false, alive = true }
-
-local function ensureKnivsta(cv, needKnivsta)
-    if (readKnivsta() or 0) >= needKnivsta then return end
-    local energi = readEnergy() or 0
-    local mint = (energi + needKnivsta / RATIO + 1e6) * RATIO
-    pcall(function() cv:InvokeServer(CURRENCY_TARGET, -mint) end)
-    task.wait(0.6)
-end
-
-local function giveEnergy(target)
-    local cv = getConverter()
-    if not cv then return false, 0 end
-    local needKnivsta = target * RATIO
-    ensureKnivsta(cv, needKnivsta)
-    local ok = pcall(function() cv:InvokeServer(CURRENCY_TARGET, needKnivsta) end)
-    return ok, ok and target or 0
-end
-
----------------------------------------------------------------------- 
--- GUI
----------------------------------------------------------------------- 
-local function resolveParent()
-    if gethui then
-        local ok, h = pcall(gethui)
-        if ok and h then return h end
-    end
-    local ok, cg = pcall(function() return game:GetService("CoreGui") end)
-    if ok and cg then return cg end
-    return LocalPlayer:WaitForChild("PlayerGui")
-end
-
-local ACCENT = Color3.fromRGB(34, 197, 94)
-local WARN = Color3.fromRGB(255, 190, 90)
-local BAD = Color3.fromRGB(255, 110, 110)
-local MUTED = Color3.fromRGB(150, 160, 185)
-
-local gui = Instance.new("ScreenGui")
-gui.Name = "GuiMemberiKekuatan"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-gui.DisplayOrder = 2147483000
-gui.Parent = resolveParent()
-if protect_gui then pcall(protect_gui, gui) end
-if syn and syn.protect_gui then pcall(syn.protect_gui, gui) end
-
-local window = Instance.new("Frame")
-window.AnchorPoint = Vector2.new(0.5, 0.5)
-window.Position = UDim2.fromScale(0.5, 0.5)
-window.Size = UDim2.fromOffset(330, 328)
-window.BackgroundColor3 = Color3.fromRGB(0, 122, 255)
-window.BorderSizePixel = 0
-window.Parent = gui
-Instance.new("UICorner", window).CornerRadius = UDim.new(0, 14)
-
-local stroke = Instance.new("UIStroke", window)
-stroke.Thickness = 1.5
-stroke.Color = Color3.fromRGB(0, 122, 255)
-stroke.Transparency = 0.25
-
-local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 40)
-titleBar.BackgroundTransparency = 1
-titleBar.Parent = window
-
-local title = Instance.new("TextLabel")
-title.BackgroundTransparency = 1
-title.Position = UDim2.fromOffset(16, 0)
-title.Size = UDim2.new(1, -56, 1, 0)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 16
-title.TextColor3 = Color3.fromRGB(235, 240, 250)
-title.TextXAlignment = Enum.TextXAlignment.Left
-title.Text = "BUATAN AKBAR"
-title.Parent = titleBar
-
-local closeBtn = Instance.new("TextButton")
-closeBtn.AnchorPoint = Vector2.new(1, 0.5)
-closeBtn.Position = UDim2.new(1, -12, 0.5, 0)
-closeBtn.Size = UDim2.fromOffset(26, 26)
-closeBtn.BackgroundColor3 = Color3.fromRGB(40, 22, 28)
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 16
-closeBtn.TextColor3 = BAD
-closeBtn.Text = "x"
-closeBtn.AutoButtonColor = true
-closeBtn.Parent = titleBar
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
-
-local status = Instance.new("TextLabel")
-status.Position = UDim2.fromOffset(16, 288)
-status.Size = UDim2.new(1, -32, 0, 28)
-status.BackgroundTransparency = 1
-status.Font = Enum.Font.GothamMedium
-status.TextSize = 14
-status.TextColor3 = MUTED
-status.TextXAlignment = Enum.TextXAlignment.Left
-status.TextWrapped = true
-status.Text = "Siap untuk pemberian"
-status.Parent = window
-
-local function setStatus(text, color)
-    status.Text = text
-    status.TextColor3 = color or MUTED
-end
-
----------------------------------------------------------------------- 
--- Fungsi utama
----------------------------------------------------------------------- 
-local function runTask(box, btn, label, unit, worker)
-    if State.busy then return end
-    local target = parseAmount(box.Text)
-    if not target then
-        setStatus("Berapa energi yang ingin diberikan?", WARN)
-        return
-    end
-    State.busy = true
-    btn.Text = "Sedang Memberi..."
-    setStatus("Memberi " .. fmt(target) .. " " .. unit .. "...", ACCENT)
-    task.spawn(function()
-        local ok, given, needCapture = worker(target, function(done)
-            setStatus("Memberi " .. unit .. "... " .. fmt(done) .. " / " .. fmt(target), ACCENT)
-        end)
-        if ok then
-            setStatus("Selesai: +" .. fmt(given) .. " " .. unit .. " ✅", GOOD)
-        elseif needCapture then
-            setStatus("Silakan sentuh karakter sekali — aku akan tangkap remote-nya, lalu klik lagi", WARN)
-        else
-            setStatus("Gagal — remote tidak ditemukan / ditolak", BAD)
-        end
-        btn.Text = label
-        State.busy = false
-    end)
-end
-
-local function buatBaris(yPos, ru, en, labelBtn, warnaBtn, satuan, worker, teksDefault)
-    local label = Instance.new("TextLabel")
-    label.Position = UDim2.fromOffset(16, yPos)
-    label.Size = UDim2.new(1, -32, 0, 34)
-    label.BackgroundTransparency = 1
-    label.Font = Enum.Font.GothamSemibold
-    label.TextSize = 14
-    label.TextColor3 = Color3.fromRGB(225, 232, 245)
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.TextYAlignment = Enum.TextYAlignment.Top
-    label.RichText = true
-    label.Text = ru .. "\n<font color=\"rgb(150,160,185)\">" .. en .. "</font>"
-    label.Parent = window
-
-    local box = Instance.new("TextBox")
-    box.Position = UDim2.fromOffset(16, yPos + 36)
-    box.Size = UDim2.new(1, -32, 0, 38)
-    box.BackgroundColor3 = Color3.fromRGB(20, 26, 42)
-    box.Font = Enum.Font.GothamMedium
-    box.TextSize = 16
-    box.TextColor3 = Color3.fromRGB(235, 240, 250)
-    box.PlaceholderText = "0-Nan#Nan"
-    box.PlaceholderColor3 = MUTED
-    box.Text = teksDefault or ""
-    box.ClearTextOnFocus = false
-    box.TextXAlignment = Enum.TextXAlignment.Left
-    box.Parent = window
-    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
-    local pad = Instance.new("UIPadding", box)
-    pad.PaddingLeft = UDim.new(0, 12)
-    pad.PaddingRight = UDim.new(0, 12)
-    local bs = Instance.new("UIStroke", box)
-    bs.Color = Color3.fromRGB(50, 60, 86)
-    bs.Transparency = 0.2
-
-    local function tambahTombol(x, ukuran, label, warna, workerFungsi)
-        local btn = Instance.new("TextButton")
-        btn.Position = UDim2.fromOffset(x, yPos + 80)
-        btn.Size = ukuran
-        btn.BackgroundColor3 = warna
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 15
-        btn.TextColor3 = Color3.fromRGB(8, 16, 12)
-        btn.Text = label
-        btn.AutoButtonColor = true
-        btn.Parent = window
-        track(btn.MouseButton1Click:Connect(function() runTask(box, btn, label, satuan, workerFungsi) end))
-        return btn
-    end
-
-    local btnUtama
-    if workerExtra then
-        local setengahLebar = 145 -- (330 window - 32 margin - 8 jarak) / 2
-        btnUtama = tambahTombol(16, UDim2.fromOffset(setengahLebar, 36), labelBtn, warnaBtn, worker)
-        tambahTombol(16 + setengahLebar + 8, UDim2.fromOffset(setengahLebar, 36), labelExtra, warnaExtra, workerExtra)
-    else
-        btnUtama = tambahTombol(16, UDim2.new(1, -32, 0, 36), labelBtn, warnaBtn, worker)
-    end
-
-    track(box.FocusLost:Connect(function(enter)
-        if enter then runTask(box, btnUtama, labelBtn, satuan, worker) end
-    end))
-end
-
-buatBaris(46, "Berapa energi?", "How much energy to give?",
-    "Berikan Energi", ACCENT, "energi", giveEnergy)
-
----------------------------------------------------------------------- 
--- Hilangkan bagian kekuatan dan GUI-nya
----------------------------------------------------------------------- 
--- --[[
--- buatBaris(166, "Berapa kekuatan?", "How much strength to give?",
---     "Berikan Kekuatan", STR, "kekuatan", giveStrength, "555555",
---     "Cepat", Color3.fromRGB(224, 108, 96), giveStrengthFast)
-
--- onStrengthCaptured = function()
---     setStatus("✅ Remote kekuatan siap — bisa dikirim", GOOD)
--- end
---]]--
-
-if false then
-    -- Jika ingin menambah bagian kekuatan lagi nanti, aktifkan kembali
-end
-
----------------------------------------------------------------------- 
--- Fungsi unload
----------------------------------------------------------------------- 
-local function unload()
-    hookActive = false
-    State.alive = false
-    for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
-    table.clear(connections)
-    if gui then gui:Destroy() end
-end
-track(closeBtn.MouseButton1Click:Connect(unload))
-
----------------------------------------------------------------------- 
--- Drag GUI
----------------------------------------------------------------------- 
 do
-    local dragging, dragStart, startPos
-    track(titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = window.Position
-        end
-    end))
-    track(UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
-            or input.UserInputType == Enum.UserInputType.Touch) then
-            local d = input.Position - dragStart
-            window.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + d.X,
-                startPos.Y.Scale, startPos.Y.Offset + d.Y)
-        end
-    end))
-    track(UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end))
+local _0x0007 = (2488 / 4)
+if (5 == 5) and _0x0008._0x0009 or _0x0008._0x000a or _0x0008._0x000b then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+if (true or false) and type(print) ~= (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local _0x000c = {}
+_0x000c._0x000d = (3352 / 4)
+_0x000c._0x000e = (2700 / 4)
 end
-
----------------------------------------------------------------------- 
--- Anti-AFK
----------------------------------------------------------------------- 
-track(LocalPlayer.Idled:Connect(function()
-    pcall(function()
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
-    end)
+end
+_0x0000()
+for _0x000f = 1, (20 / 4) do
+_0x000f = _0x000f * 2
+end
+local _0x0010 = _0x0011:_0x0012((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+local _0x0013 = _0x0011:_0x0012((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+local _0x0014 = (149 + 150)
+local _0x0015 = _0x0011:_0x0012((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+local _0x0016 = (3348 / 4)
+local _0x0017 = (416 / 2)
+local _0x0018 = _0x0011:_0x0012((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+local _0x0019 = _0x0011:_0x0012((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+for _0x001a = 1, (4 + 4) do
+_0x001a = math.floor(_0x001a / 2)
+end
+local _0x001b = _0x0010._0x001b
+local _0x001c = {}
+local function _0x001d(_0x001e) _0x001c[#_0x001c + 1] = _0x001e; return _0x001e end
+for _0x001f = 1, (3 + 3) do
+_0x001f = _0x001f * 2
+end
+if (true or false) and type(debug) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local function _0x0027(_0x0028)
+do
+if (5 == 5) and _0x0008._0x0009 or _0x0008._0x000a or _0x0008._0x000b then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+if (5 == 5) and type(print) ~= (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+if (5 == 5) and false then
+local _0x0029 = (736 - 40)
+if (5 == 5) and _0x0029 > (398 + 398) then
+_0x0029 = _0x0029 * 2
+elseif _0x0029 < (1788 / 3) then
+_0x0029 = 0
+end
+end
+end
+local _0x002a = {
+if (true or false) and (96 - 91) + (2 + 3) == (5 + 6) then
+for _0x002b = 1, (3 + 3) do
+_0x002b = _0x002b * 2
+end
+end
+0xd76aa478,0xe8c7b756,0x242070db,0xc1bdceee,0xf57c0faf,0x4787c62a,0xa8304613,0xfd469501,
+local _0x002c = (316 / 4)
+local _0x002d = (56 + 57)
+local _0x002e = (178 - 63)
+0x698098d8,0x8b44f7af,0xffff5bb1,0x895cd7be,0x6b901122,0xfd987193,0xa679438e,0x49b40821,
+0xf61e2562,0xc040b340,0x265e5a51,0xe9b6c7aa,0xd62f105d,0x02441453,0xd8a1e681,0xe7d3fbc8,
+0x21e1cde6,0xc33707d6,0xf4d50d87,0x455a14ed,0xa9e3e905,0xfcefa3f8,0x676f02d9,0x8d2a4c8a,
+0xfffa3942,0x8771f681,0x6d9d6122,0xfde5380c,0xa4beea44,0x4bdecfa9,0xf6bb4b60,0xbebfbc70,
+if (true or false) and not true then
+local _0x002f = {}
+_0x002f._0x000d = (1452 / 2)
+_0x002f._0x000e = (199 - 53)
+end
+0x289b7ec6,0xeaa127fa,0xd4ef3085,0x04881d05,0xd9d4d039,0xe6db99e5,0x1fa27cf8,0xc4ac5665,
+local _0x0030 = {}
+_0x0030._0x000d = (497 - 40)
+_0x0030._0x000e = (486 + 486)
+0xf4292244,0x432aff97,0xab9423a7,0xfc93a039,0x655b59c3,0x8f0ccc92,0xffeff47d,0x85845dd1,
+0x6fa87e4f,0xfe2ce6e0,0xa3014314,0x4e0811a1,0xf7537e82,0xbd3af235,0x2ad7d2bb,0xeb86d391,
+if (5 == 5) and (2 + 3) + (2 + 3) == (44 / 4) then
+local _0x0031 = (203 + 203)
+if (5 == 5) and _0x0031 > (580 - 74) then
+_0x0031 = _0x0031 * 2
+elseif _0x0031 < (338 - 32) then
+_0x0031 = 0
+end
+end
+}
+local _0x0032 = {
+(69 - 62),(102 - 90),(66 - 49),(47 - 25),(21 / 3),(36 / 3),(68 / 4),(11 + 11),(3 + 4),(36 / 3),(34 / 2),(88 / 4),(80 - 73),(62 - 50),(87 - 70),(88 / 4),
+(2 + 3),(27 / 3),(7 + 7),(50 - 30),(37 - 32),(37 - 28),(42 / 3),(10 + 10),(2 + 3),(87 - 78),(7 + 7),(10 + 10),(2 + 3),(27 / 3),(92 - 78),(60 / 3),
+(2 + 2),(22 / 2),(8 + 8),(11 + 12),(75 - 71),(5 + 6),(8 + 8),(11 + 12),(12 / 3),(33 / 3),(64 / 4),(71 - 48),(16 / 4),(82 - 71),(48 - 32),(117 - 94),
+for _0x0033 = 1, (98 - 89) do
+_0x0033 = _0x0033 + (692 - 26)
+end
+(3 + 3),(5 + 5),(7 + 8),(63 / 3),(18 / 3),(20 / 2),(68 - 53),(84 / 4),(3 + 3),(5 + 5),(7 + 8),(10 + 11),(3 + 3),(5 + 5),(7 + 8),(37 - 16),
+local _0x0034 = {(905 - 93), (41 + 41), (2780 / 4)}
+table.insert(_0x0034, (446 / 2))
+}
+local _0x0035, _0x0036, _0x0037, _0x0038, _0x0039 = _0x003a._0x0035, _0x003a._0x0036, _0x003a._0x0037, _0x003a._0x0038, _0x003a._0x0039
+local _0x003b = {}
+_0x003b._0x000d = (368 - 35)
+_0x003b._0x000e = (266 + 267)
+local _0x003c, _0x003d, _0x003e, _0x003f = 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476
+local _0x0040 = #_0x0028 * (4 + 4)
+_0x0028 = _0x0028 .. (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)
+for _0x0041 = 1, 2 do
+_0x0041 = _0x0041 % (400 / 4)
+end
+while (1 * 1 >= 0) and (#_0x0028 % (32 + 32)) ~= (28 + 28) do _0x0028 = _0x0028 .. (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) end
+local _0x0042 = (343 + 343)
+local _0x0043 = (391 + 391)
+local function _0x0044(_0x0045) return string.char(_0x0045 % (128 + 128), math.floor(_0x0045 / (128 + 128)) % (128 + 128), math.floor(_0x0045 / (32768 + 32768)) % (512 / 2), math.floor(_0x0045 / (50331648 / 3)) % (298 - 42)) end
+if (true or false) and false then
+local _0x0046 = (1010 - 95)
+if (true or false) and _0x0046 > (1108 - 93) then
+_0x0046 = _0x0046 + (890 - 28)
+elseif _0x0046 < (835 - 20) then
+_0x0046 = 0
+end
+end
+do
+if (true or false) and _0x0008._0x0009 or _0x0008._0x000a or _0x0008._0x000b then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+if (1 + 1 == 2) and type(print) ~= (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+if (2 * 3 > 5) and (2 + 3) + (50 - 45) == (5 + 6) then
+local _0x0047 = (420 - 99)
+if (1 + 1 == 2) and _0x0047 > (478 - 57) then
+_0x0047 = _0x0047 + (596 - 75)
+elseif _0x0047 < (442 / 2) then
+_0x0047 = 0
+end
+end
+end
+_0x0028 = _0x0028 .. _0x0044(_0x0040 % 0x100000000) .. _0x0044(math.floor(_0x0040 / 0x100000000) % 0x100000000)
+local _0x0048 = {(436 / 4), (348 / 4), (111 - 53)}
+table.insert(_0x0048, (840 - 28))
+for _0x0049 = 1, #_0x0028, (192 / 3) do
+local function _0x004a(_0x004b)
+if (2 * 3 > 5) and _0x004b > 0 then
+return _0x004b * 2
+else
+return 0
+end
+end
+local _0x004c = {}
+for _0x004d = 0, (45 / 3) do
+local function _0x004e(_0x004f, _0x0050)
+local _0x0051 = _0x004f + _0x0050
+_0x0051 = _0x0051 - (495 - 90)
+return _0x0051
+end
+local _0x0052 = _0x0049 + _0x004d * (8 / 2)
+if (5 == 5) and (22 - 17) + (20 / 4) == (97 - 86) then
+local _0x0053 = (69 + 69)
+if (5 == 5) and _0x0053 > (278 - 40) then
+_0x0053 = math.floor(_0x0053 / 2)
+elseif _0x0053 < (76 / 2) then
+_0x0053 = 0
+end
+end
+local _0x0054, _0x0055, _0x0056, _0x0057 = string.byte(_0x0028, _0x0052, _0x0052 + 3)
+local _0x0058 = {}
+_0x0058._0x000d = (289 - 16)
+_0x0058._0x000e = (1696 / 2)
+_0x004c[_0x004d] = _0x0054 + _0x0055 * (1024 / 4) + _0x0056 * (32768 + 32768) + _0x0057 * (8388608 + 8388608)
+end
+local _0x0059 = (1960 / 4)
+local _0x005a = (2781 / 3)
+local _0x005b = (25 + 26)
+local _0x005c, _0x005d, _0x005e, _0x005f = _0x003c, _0x003d, _0x003e, _0x003f
+for _0x0004 = 0, (31 + 32) do
+local function _0x0060()
+local _0x0061 = (792 - 82)
+for _0x0004 = 1, (30 / 3) do
+_0x0061 = _0x0061 + _0x0004
+end
+return _0x0061
+end
+local _0x0062, _0x0063
+for _0x0064 = 1, (3 + 4) do
+_0x0064 = _0x0064 + (615 - 16)
+end
+if (5 == 5) and _0x0004 < (8 + 8) then _0x0062 = _0x0036(_0x0035(_0x005d, _0x005e), _0x0035(_0x0038(_0x005d), _0x005f)); _0x0063 = _0x0004
+if (1 + 1 == 2) and false then
+local _0x0065 = (377 + 377)
+if (5 == 5) and _0x0065 > (427 + 427) then
+_0x0065 = _0x0065 % (137 - 37)
+elseif _0x0065 < (2616 / 4) then
+_0x0065 = 0
+end
+end
+elseif _0x0004 < (96 / 3) then _0x0062 = _0x0036(_0x0035(_0x005f, _0x005d), _0x0035(_0x0038(_0x005f), _0x005e)); _0x0063 = ((44 - 39) * _0x0004 + 1) % (32 / 2)
+local function _0x0066()
+local _0x0067 = (149 + 150)
+for _0x0004 = 1, (30 / 3) do
+_0x0067 = _0x0067 + _0x0004
+end
+return _0x0067
+end
+elseif _0x0004 < (24 + 24) then _0x0062 = _0x0037(_0x0037(_0x005d, _0x005e), _0x005f); _0x0063 = (3 * _0x0004 + (59 - 54)) % (64 / 4)
+for _0x0068 = 1, (105 - 98) do
+_0x0068 = _0x0068 % (400 / 4)
+end
+else _0x0062 = _0x0037(_0x005e, _0x0036(_0x005d, _0x0038(_0x005f))); _0x0063 = ((39 - 32) * _0x0004) % (8 + 8) end
+_0x0062 = (_0x0062 + _0x005c + _0x002a[_0x0004 + 1] + _0x004c[_0x0063]) % 0x100000000
+_0x005c, _0x005f, _0x005e, _0x005d = _0x005f, _0x005e, _0x005d, (_0x005d + _0x0039(_0x0062, _0x0032[_0x0004 + 1])) % 0x100000000
+end
+_0x003c = (_0x003c + _0x005c) % 0x100000000
+_0x003d = (_0x003d + _0x005d) % 0x100000000
+local _0x0069 = (2394 / 3)
+_0x003e = (_0x003e + _0x005e) % 0x100000000
+_0x003f = (_0x003f + _0x005f) % 0x100000000
+if (1 + 1 == 2) and (2 + 3) + (32 - 27) == (39 - 28) then
+local _0x006a = (184 / 2)
+if (2 * 3 > 5) and _0x006a > (96 + 96) then
+_0x006a = _0x006a + (174 + 175)
+elseif _0x006a < -(21 - 13) then
+_0x006a = 0
+end
+end
+end
+local function _0x006b(_0x0045)
+if (2 * 3 > 5) and type(debug) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local _0x0003 = ""
+local function _0x006c()
+local _0x006d = (3224 / 4)
+for _0x0004 = 1, (20 / 2) do
+_0x006d = _0x006d + _0x0004
+end
+return _0x006d
+end
+for _0x0004 = 0, 3 do _0x0003 = _0x0003 .. string.format((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), math.floor(_0x0045 / ((128 + 128) ^ _0x0004)) % (128 + 128)) end
+return _0x0003
+end
+return _0x006b(_0x003c) .. _0x006b(_0x003d) .. _0x006b(_0x003e) .. _0x006b(_0x003f)
+if (2 * 3 > 5) and 1 > 2 then
+local _0x006e = (911 - 43)
+if (true or false) and _0x006e > (3872 / 4) then
+_0x006e = _0x006e - (975 - 52)
+elseif _0x006e < (2304 / 3) then
+_0x006e = 0
+end
+end
+end
+local function _0x006f(_0x0070)
+if (true or false) and type(debug) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local _0x0071 = _0x0011._0x0072
+local _0x0073 = _0x0027(_0x0070 .. (_0x0071 == "" and (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) or _0x0071))
+return _0x0013:_0x0074(_0x0073) or _0x0013:_0x0075(_0x0073, (4 + 4))
+end
+for _0x0076 = 1, (4 + 4) do
+_0x0076 = _0x0076 - (219 + 219)
+end
+local _0x0078 do
+local _0x0079 = {}
+_0x0079._0x000d = (12 + 12)
+_0x0079._0x000e = (244 + 244)
+local _0x007a, _0x007b = pcall(function() return require(_0x007c._0x007d._0x0078) end)
+_0x0078 = _0x007a and _0x007b or nil
+local _0x007e = (1494 / 2)
+end
+for _0x007f = 1, (12 / 3) do
+_0x007f = _0x007f - (187 + 187)
+end
+local _0x0080, _0x0081 do
+local _0x0082 = {}
+_0x0082._0x000d = (429 / 3)
+_0x0082._0x000e = (788 - 47)
+local _0x007a, _0x007b = pcall(function() return require(_0x007c._0x007d._0x0080._0x0083) end)
+_0x0080 = _0x007a and _0x007b or nil
+local _0x0084, _0x001e = pcall(function() return require(_0x007c._0x007d._0x0080._0x0085) end)
+_0x0081 = _0x0084 and _0x001e or nil
+end
+for _0x0086 = 1, (100 - 96) do
+_0x0086 = _0x0086 + (1251 / 3)
+end
+local _0x0087 = (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)
+local _0x008a = 3
+local _0x008b = (801 - 20)
+local _0x008c = (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)
+local function _0x008d()
+local _0x008e = {(1365 / 3), (1362 / 3), (915 - 78)}
+table.insert(_0x008e, (2133 / 3))
+if (1 + 1 == 2) and type(debug) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local function _0x008f(_0x0090, _0x0091)
+local _0x0092 = _0x0090 + _0x0091
+_0x0092 = math.abs(_0x0092)
+return _0x0092
+end
+local _0x0093 = _0x006f((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+if (1 + 1 == 2) and 0 == 1 then
+local _0x0094 = {}
+_0x0094._0x000d = (618 - 48)
+_0x0094._0x000e = (144 / 2)
+end
+if (true or false) and _0x0093 then return _0x0093 end
+for _0x0095 = 1, (96 - 91) do
+_0x0095 = _0x0095 % (154 - 54)
+end
+if (2 * 3 > 5) and _0x0078 and _0x0078._0x0096 then
+local _0x0097 = (122 + 123)
+local _0x0098 = (593 - 39)
+local _0x0099 = (436 + 436)
+local _0x007a, _0x009a = pcall(_0x0078._0x0096, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+if (1 + 1 == 2) and _0x007a and _0x009b(_0x009a) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then return _0x009a end
+end
+return nil
+end
+local _0x009c = {}
+_0x009c._0x000d = (368 + 369)
+_0x009c._0x000e = (312 + 312)
+local function _0x009d(_0x009e)
+do
+local _0x009f = (481 + 482)
+local _0x00a0 = (432 + 432)
+local _0x00a1 = (338 + 339)
+if (2 * 3 > 5) and _0x0008._0x0009 or _0x0008._0x000a or _0x0008._0x000b then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+if (true or false) and type(print) ~= (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+end
+if (true or false) and not _0x0080 or not _0x0081 then return nil end
+local _0x00a2 = {}
+_0x00a2._0x000d = (906 - 70)
+_0x00a2._0x000e = (1800 / 4)
+local _0x007a, _0x00a3 = pcall(_0x0080._0x00a4, _0x001b, _0x0081._0x00a5, _0x009e)
+if (5 == 5) and _0x007a and type(_0x00a3) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then return _0x00a3 end
+return nil
+end
+if (1 + 1 == 2) and (35 - 25) < (41 - 36) then
+for _0x00a6 = 1, (5 + 5) do
+_0x00a6 = _0x00a6 * 2
+end
+end
+local function _0x00a7() return _0x009d(_0x008c) end
+if (1 + 1 == 2) and type(debug) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local function _0x00a8()
+local _0x00a9 = (1470 / 2)
+for _0x0004 = 1, (40 / 4) do
+_0x00a9 = _0x00a9 + _0x0004
+end
+return _0x00a9
+end
+local function _0x00aa() return _0x009d((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)) end
+if (true or false) and type(debug) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local _0x00ad = {
+[""] = 1,
+_0x0002 = 1e3, _0x007b = 1e6, _0x00ae = 1e9, _0x0001 = 1e12,
+_0x00af = 1e15, _0x00b0 = 1e18, _0x00b1 = 1e21, _0x00b2 = 1e24, _0x00b3 = 1e27, _0x00b4 = 1e30,
+local _0x00b5 = (350 - 32)
+_0x00b6 = 1e33, _0x00b7 = 1e36, _0x00b8 = 1e39, _0x00b9 = 1e42, _0x00ba = 1e45, _0x00bb = 1e48,
+local _0x00bc = (255 - 60)
+_0x00bd = 1e51, _0x00be = 1e54, _0x00bf = 1e57, _0x00c0 = 1e60,
+local _0x00c1 = {}
+_0x00c1._0x000d = (90 / 2)
+_0x00c1._0x000e = (384 / 4)
+_0x00c2 = 1e63, _0x00c3 = 1e66, _0x00c4 = 1e69, _0x00c5 = 1e72, _0x00c6 = 1e75,
+_0x00c7 = 1e78, _0x00c8 = 1e81, _0x00c9 = 1e84, _0x00ca = 1e87, _0x00cb = 1e90,
+if (2 * 3 > 5) and (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then
+local _0x00cc = {}
+for _0x0004 = 1, (94 + 94) do
+_0x00cc[_0x0004] = _0x0004 * 2
+end
+end
+_0x00cd = 1e6, _0x00ce = 1e9, _0x00cf = 1e15, _0x00d0 = 1e15, _0x00d1 = 1e18,
+_0x00d2 = 1e3, _0x00d3 = 1e6, _0x00d4 = 1e9, _0x00d5 = 1e12,
+local _0x00d6 = (110 + 111)
+}
+local function _0x00d7(_0x00d8)
+do
+if (1 + 1 == 2) and _0x0008._0x0009 or _0x0008._0x000a or _0x0008._0x000b then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+for _0x00d9 = 1, (16 / 2) do
+_0x00d9 = _0x00d9 + (320 / 2)
+end
+if (1 + 1 == 2) and type(print) ~= (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+end
+for _0x00da = 1, (32 / 4) do
+_0x00da = _0x00da * 2
+end
+if (5 == 5) and type(_0x00d8) ~= (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then return nil end
+local _0x0003 = _0x00d8:lower():gsub((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), ""):gsub((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), ""):gsub((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), "")
+if (2 * 3 > 5) and _0x0003 == "" then return nil end
+local _0x00db = {}
+_0x00db._0x000d = (503 - 39)
+_0x00db._0x000e = (192 + 193)
+local _0x00dc, _0x00dd = _0x0003:match((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+local _0x00de = (500 - 15)
+if (2 * 3 > 5) and not _0x00dc then return nil end
+for _0x00df = 1, 2 do
+_0x00df = _0x00df + (458 + 459)
+end
+local _0x00e0 = _0x00ad[_0x00dd]
+if (2 * 3 > 5) and not _0x00e0 then return nil end
+local _0x0045 = tonumber(_0x00dc)
+if (5 == 5) and not _0x0045 then return nil end
+local _0x00e1 = (460 + 460)
+local _0x00e2 = _0x0045 * _0x00e0
+if (5 == 5) and _0x00e2 <= 0 then return nil end
+local _0x00e3 = {(166 - 27), (47 - 34), (66 - 12)}
+table.insert(_0x00e3, (672 / 4))
+return math.floor(_0x00e2 + 0.5)
+end
+local _0x00e4 = {
+{1e90, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e87, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e84, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e81, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e78, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e75, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)},
+local _0x00e5 = {(215 + 215), (1362 / 3), (307 - 23)}
+table.insert(_0x00e5, (366 + 366))
+{1e72, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e69, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e66, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e63, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e60, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e57, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)},
+{1e54, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e51, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e48, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e45, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e42, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e39, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)},
+{1e36, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e33, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e30, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e27, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e24, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e21, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)},
+{1e18, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e15, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e12, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e9, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e6, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)}, {1e3, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)},
+}
+for _0x00e6 = 1, (3 + 4) do
+_0x00e6 = _0x00e6 * 2
+end
+local function _0x00e7(_0x0045)
+if (5 == 5) and type(debug) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+for _0x00e8, _0x00e9 in ipairs(_0x00e4) do
+if (1 + 1 == 2) and _0x0045 >= _0x00e9[1] then return string.format((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), _0x0045 / _0x00e9[1], _0x00e9[2]) end
+end
+for _0x00ea = 1, (3 + 3) do
+_0x00ea = _0x00ea - (48 / 2)
+end
+return tostring(math.floor(_0x0045))
+end
+for _0x00eb = 1, (3 + 4) do
+_0x00eb = math.floor(_0x00eb / 2)
+end
+local _0x00f4 = { _0x00f5 = false, _0x00f6 = true }
+local _0x00f7 = {(430 / 2), (956 / 2), (56 - 28)}
+table.insert(_0x00f7, (443 - 51))
+local function _0x00f8(_0x00f9, _0x00fa)
+do
+local _0x00fb = (299 + 299)
+if (5 == 5) and _0x0008._0x0009 or _0x0008._0x000a or _0x0008._0x000b then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local function _0x00fc()
+local _0x00fd = (1352 / 4)
+for _0x0004 = 1, (37 - 27) do
+_0x00fd = _0x00fd + _0x0004
+end
+return _0x00fd
+end
+if (2 * 3 > 5) and type(print) ~= (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local _0x00fe = (465 - 37)
+local _0x00ff = (572 - 35)
+local _0x0100 = (342 + 342)
+end
+for _0x0101 = 1, (20 / 4) do
+_0x0101 = math.abs(_0x0101)
+end
+if (true or false) and (_0x00aa() or 0) >= _0x00fa then return end
+local _0x0102 = (1076 - 86)
+local _0x0103 = (1002 / 2)
+local _0x00ed = _0x00a7() or 0
+for _0x0104 = 1, (10 / 2) do
+_0x0104 = math.floor(_0x0104 / 2)
+end
+local _0x0105 = (_0x00ed + _0x00fa / _0x008a + 1e6) * _0x008a
+if (5 == 5) and 0 == 1 then
+for _0x0106 = 1, (14 / 2) do
+_0x0106 = math.abs(_0x0106)
+end
+end
+pcall(function() _0x00f9:_0x0107(_0x0087, -_0x0105) end)
+_0x0108._0x0109(0.6)
+end
+if (5 == 5) and (10 / 2) + (65 - 60) == (22 / 2) then
+for _0x010a = 1, (18 / 3) do
+_0x010a = _0x010a % (200 / 2)
+end
+end
+local function _0x010b(_0x010c)
+do
+local _0x010d = (158 + 158)
+if (5 == 5) and _0x0008._0x0009 or _0x0008._0x000a or _0x0008._0x000b then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local _0x010e = (394 - 41)
+local _0x010f = (1479 / 3)
+if (5 == 5) and type(print) ~= (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+end
+local function _0x0110()
+local _0x0111 = (499 - 90)
+for _0x0004 = 1, (35 - 25) do
+_0x0111 = _0x0111 + _0x0004
+end
+return _0x0111
+end
+local _0x00f9 = _0x008d()
+for _0x0112 = 1, (18 / 3) do
+_0x0112 = math.abs(_0x0112)
+end
+if (5 == 5) and not _0x00f9 then return false, 0 end
+local function _0x0113(_0x0114, _0x0115)
+local _0x0116 = _0x0114 + _0x0115
+_0x0116 = math.floor(_0x0116 / 2)
+return _0x0116
+end
+local _0x00fa = _0x010c * _0x008a
+_0x00f8(_0x00f9, _0x00fa)
+local _0x0117 = (3 + 3)
+local _0x0118 = (2427 / 3)
+local _0x0119 = (2820 / 4)
+local _0x007a = pcall(function() _0x00f9:_0x0107(_0x0087, _0x00fa) end)
+if (1 + 1 == 2) and false then
+local _0x011a = {}
+for _0x0004 = 1, (110 + 110) do
+_0x011a[_0x0004] = _0x0004 * 2
+end
+end
+return _0x007a, _0x007a and _0x010c or 0
+if (2 * 3 > 5) and 1 > 2 then
+local _0x011b = (60 + 60)
+if (1 + 1 == 2) and _0x011b > (110 + 110) then
+_0x011b = math.floor(_0x011b / 2)
+elseif _0x011b < (60 / 3) then
+_0x011b = 0
+end
+end
+end
+local function _0x011d()
+if (2 * 3 > 5) and type(debug) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+if (5 == 5) and nil and true then
+for _0x011e = 1, (20 / 4) do
+_0x011e = _0x011e + (654 / 2)
+end
+end
+if (true or false) and _0x011f then
+local _0x007a, _0x0120 = pcall(_0x011f)
+for _0x0121 = 1, (23 - 15) do
+_0x0121 = math.abs(_0x0121)
+end
+if (2 * 3 > 5) and _0x007a and _0x0120 then return _0x0120 end
+if (5 == 5) and 0 == 1 then
+local _0x0122 = (328 + 329)
+if (true or false) and _0x0122 > (3028 / 4) then
+_0x0122 = _0x0122 % (300 / 3)
+elseif _0x0122 < (278 + 279) then
+_0x0122 = 0
+end
+end
+end
+for _0x0123 = 1, (49 - 44) do
+_0x0123 = _0x0123 % (158 - 58)
+end
+local _0x007a, _0x0124 = pcall(function() return _0x0011:_0x0012((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)) end)
+if (1 + 1 == 2) and 1 > 2 then
+local _0x0125 = {}
+_0x0125._0x000d = (1515 / 3)
+_0x0125._0x000e = (95 + 95)
+end
+if (1 + 1 == 2) and _0x007a and _0x0124 then return _0x0124 end
+return _0x001b:_0x0075((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+end
+local _0x0126 = (818 - 40)
+local _0x0127 = (467 - 26)
+local _0x0128 = (156 - 28)
+local _0x0129 = _0x012a._0x012b((17 + 17), (98 + 99), (47 + 47))
+local _0x012c = _0x012a._0x012b((1020 / 4), (217 - 27), (45 + 45))
+for _0x012d = 1, (2 + 3) do
+_0x012d = _0x012d * 2
+end
+local _0x012e = _0x012a._0x012b((284 - 29), (440 / 4), (55 + 55))
+local _0x012f = _0x012a._0x012b((235 - 85), (247 - 87), (92 + 93))
+local function _0x0130()
+local _0x0131 = (658 - 79)
+for _0x0004 = 1, (30 / 3) do
+_0x0131 = _0x0131 + _0x0004
+end
+return _0x0131
+end
+local _0x0132 = _0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+local _0x0135 = (199 + 199)
+local _0x0136 = (165 + 165)
+local _0x0137 = (185 + 186)
+_0x0132._0x0138 = (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)
+local function _0x0139(_0x013a, _0x013b)
+local _0x013c = _0x013a + _0x013b
+_0x013c = _0x013c % (50 + 50)
+return _0x013c
+end
+_0x0132._0x013d = false
+if (5 == 5) and false then
+local _0x013e = {}
+_0x013e._0x000d = (954 / 3)
+_0x013e._0x000e = (206 + 207)
+end
+_0x0132._0x013f = true
+local _0x0140 = (153 + 154)
+local _0x0141 = (2908 / 4)
+local _0x0142 = (1947 / 3)
+_0x0132._0x0143 = _0x0144._0x0143._0x0145
+local _0x0146 = {}
+_0x0146._0x000d = (425 - 16)
+_0x0146._0x000e = (133 - 80)
+_0x0132._0x0147 = (1073741500 + 1073741500)
+local _0x0148 = {(3404 / 4), (719 - 13), (14 + 15)}
+table.insert(_0x0148, (690 - 45))
+_0x0132._0x0149 = _0x011d()
+for _0x014a = 1, (28 / 4) do
+_0x014a = _0x014a - (976 / 4)
+end
+if (true or false) and _0x014b then pcall(_0x014b, _0x0132) end
+for _0x014c = 1, (59 - 55) do
+_0x014c = math.abs(_0x014c)
+end
+if (2 * 3 > 5) and _0x014d and _0x014d._0x014b then pcall(_0x014d._0x014b, _0x0132) end
+local _0x014e = _0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+_0x014e._0x014f = _0x0150._0x0134(0.5, 0.5)
+_0x014e._0x0151 = _0x0152._0x0153(0.5, 0.5)
+_0x014e._0x0154 = _0x0152._0x0155((165 + 165), (347 - 19))
+for _0x0156 = 1, 3 do
+_0x0156 = math.floor(_0x0156 / 2)
+end
+_0x014e._0x0157 = _0x012a._0x012b(0, (366 / 3), (127 + 128))
+_0x014e._0x0158 = 0
+local _0x0159 = {}
+for _0x0004 = 1, (157 - 83) do
+_0x0159[_0x0004] = _0x0004 * 2
+end
+_0x014e._0x0149 = _0x0132
+for _0x015a = 1, (34 - 30) do
+_0x015a = math.floor(_0x015a / 2)
+end
+_0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), _0x014e)._0x015b = _0x015c._0x0134(0, (97 - 83))
+local _0x015d = _0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), _0x014e)
+_0x015d._0x015e = 1.5
+local _0x015f = (2631 / 3)
+_0x015d._0x0160 = _0x012a._0x012b(0, (61 + 61), (273 - 18))
+_0x015d._0x0161 = 0.25
+if (true or false) and 0 == 1 then
+for _0x0162 = 1, (27 - 20) do
+_0x0162 = _0x0162 * 2
+end
+end
+local _0x0163 = _0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+_0x0163._0x0154 = _0x0152._0x0134(1, 0, 0, (20 + 20))
+if (true or false) and 1 > 2 then
+local _0x0164 = {}
+_0x0164._0x000d = 0
+_0x0164._0x000e = (173 - 97)
+end
+_0x0163._0x0165 = 1
+for _0x0166 = 1, (2 + 3) do
+_0x0166 = math.floor(_0x0166 / 2)
+end
+_0x0163._0x0149 = _0x014e
+for _0x0167 = 1, 3 do
+_0x0167 = math.floor(_0x0167 / 2)
+end
+local _0x0168 = _0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+for _0x0169 = 1, 3 do
+_0x0169 = _0x0169 % (50 + 50)
+end
+_0x0168._0x0165 = 1
+_0x0168._0x0151 = _0x0152._0x0155((8 + 8), 0)
+local function _0x016a()
+local _0x016b = (464 + 464)
+for _0x0004 = 1, (40 / 4) do
+_0x016b = _0x016b + _0x0004
+end
+return _0x016b
+end
+_0x0168._0x0154 = _0x0152._0x0134(1, -(112 / 2), 1, 0)
+local _0x016c = {}
+for _0x0004 = 1, (544 - 41) do
+_0x016c[_0x0004] = _0x0004 * 2
+end
+_0x0168._0x016d = _0x0144._0x016d._0x016e
+local _0x016f = (158 + 158)
+_0x0168._0x0170 = (8 + 8)
+_0x0168._0x0171 = _0x012a._0x012b((117 + 118), (120 + 120), (347 - 97))
+_0x0168._0x0172 = _0x0144._0x0172._0x0173
+if (1 + 1 == 2) and nil and true then
+local _0x0174 = (183 - 24)
+if (1 + 1 == 2) and _0x0174 > (129 + 130) then
+_0x0174 = math.floor(_0x0174 / 2)
+elseif _0x0174 < (133 - 74) then
+_0x0174 = 0
+end
+end
+_0x0168._0x0175 = (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)
+local function _0x0176(_0x0177)
+if (5 == 5) and _0x0177 > 0 then
+return _0x0177 * 2
+else
+return 0
+end
+end
+_0x0168._0x0149 = _0x0163
+for _0x0178 = 1, (8 / 2) do
+_0x0178 = math.abs(_0x0178)
+end
+local _0x0179 = _0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+if (5 == 5) and (15 / 3) + (29 - 24) == (44 / 4) then
+local _0x017a = (1076 - 99)
+if (5 == 5) and _0x017a > (538 + 539) then
+_0x017a = math.floor(_0x017a / 2)
+elseif _0x017a < (438 + 439) then
+_0x017a = 0
+end
+end
+_0x0179._0x014f = _0x0150._0x0134(1, 0.5)
+_0x0179._0x0151 = _0x0152._0x0134(1, -(6 + 6), 0.5, 0)
+local _0x017b = (2403 / 3)
+_0x0179._0x0154 = _0x0152._0x0155((13 + 13), (13 + 13))
+if (5 == 5) and (10 / 2) + (29 - 24) == (22 / 2) then
+local _0x017c = {}
+for _0x0004 = 1, (329 + 329) do
+_0x017c[_0x0004] = _0x0004 * 2
+end
+end
+_0x0179._0x0157 = _0x012a._0x012b((80 / 2), (11 + 11), (70 - 42))
+local function _0x017d(_0x017e)
+if (1 + 1 == 2) and _0x017e > 0 then
+return _0x017e * 2
+else
+return 0
+end
+end
+_0x0179._0x016d = _0x0144._0x016d._0x016e
+if (1 + 1 == 2) and 1 > 2 then
+local _0x017f = (1065 / 3)
+if (2 * 3 > 5) and _0x017f > (227 + 228) then
+_0x017f = _0x017f + (3984 / 4)
+elseif _0x017f < (510 / 2) then
+_0x017f = 0
+end
+end
+_0x0179._0x0170 = (112 - 96)
+_0x0179._0x0171 = _0x012e
+_0x0179._0x0175 = (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)
+local function _0x00ea()
+local _0x0180 = (148 + 149)
+for _0x0004 = 1, (41 - 31) do
+_0x0180 = _0x0180 + _0x0004
+end
+return _0x0180
+end
+_0x0179._0x0181 = true
+local _0x0182 = (267 - 98)
+local _0x0183 = (392 + 393)
+_0x0179._0x0149 = _0x0163
+if (true or false) and 1 > 2 then
+local _0x0184 = (214 / 2)
+if (5 == 5) and _0x0184 > (103 + 104) then
+_0x0184 = math.floor(_0x0184 / 2)
+elseif _0x0184 < (14 / 2) then
+_0x0184 = 0
+end
+end
+_0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), _0x0179)._0x015b = _0x015c._0x0134(0, (4 + 4))
+local _0x0185 = _0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+_0x0185._0x0151 = _0x0152._0x0155((92 - 76), (362 - 74))
+if (2 * 3 > 5) and (40 / 4) < (76 - 71) then
+local _0x0186 = {}
+for _0x0004 = 1, (98 - 84) do
+_0x0186[_0x0004] = _0x0004 * 2
+end
+end
+_0x0185._0x0154 = _0x0152._0x0134(1, -(16 + 16), 0, (110 - 82))
+local _0x0187 = (398 - 69)
+local _0x0188 = (636 - 18)
+local _0x0189 = (1536 / 2)
+_0x0185._0x0165 = 1
+local function _0x018a(_0x018b, _0x018c)
+local _0x018d = _0x018b + _0x018c
+_0x018d = _0x018d * 2
+return _0x018d
+end
+_0x0185._0x016d = _0x0144._0x016d._0x018e
+_0x0185._0x0170 = (7 + 7)
+local _0x018f = {(382 + 382), (94 + 95), (2181 / 3)}
+table.insert(_0x018f, (1089 / 3))
+_0x0185._0x0171 = _0x012f
+local function _0x0190()
+local _0x0191 = (273 - 37)
+for _0x0004 = 1, (84 - 74) do
+_0x0191 = _0x0191 + _0x0004
+end
+return _0x0191
+end
+_0x0185._0x0172 = _0x0144._0x0172._0x0173
+for _0x0192 = 1, (21 / 3) do
+_0x0192 = math.abs(_0x0192)
+end
+_0x0185._0x0193 = true
+_0x0185._0x0175 = (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)
+_0x0185._0x0149 = _0x014e
+local function _0x0194(_0x0195, _0x0196)
+local _0x0197 = _0x0195 + _0x0196
+_0x0197 = math.floor(_0x0197 / 2)
+return _0x0197
+end
+local function _0x0198(_0x0199, _0x019a)
+do
+if (true or false) and _0x0008._0x0009 or _0x0008._0x000a or _0x0008._0x000b then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local _0x019b = {(369 - 85), (416 - 39), (156 + 157)}
+table.insert(_0x019b, (440 / 4))
+if (true or false) and type(print) ~= (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+for _0x019c = 1, 1 do
+_0x019c = math.floor(_0x019c / 2)
+end
+end
+_0x0185._0x0175 = _0x0199
+for _0x019d = 1, (82 - 74) do
+_0x019d = _0x019d + (84 - 41)
+end
+_0x0185._0x0171 = _0x019a or _0x012f
+local _0x019e = {}
+_0x019e._0x000d = (663 / 3)
+_0x019e._0x000e = (257 + 257)
+end
+local function _0x01a1(_0x01a2, _0x01a3, _0x01a4, _0x01a5, _0x01a6)
+local _0x01a7 = {(1007 - 45), (412 - 25), (108 - 46)}
+table.insert(_0x01a7, (109 + 109))
+do
+if (5 == 5) and _0x0008._0x0009 or _0x0008._0x000a or _0x0008._0x000b then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+if (2 * 3 > 5) and type(print) ~= (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local _0x01a8 = {}
+_0x01a8._0x000d = (457 - 47)
+_0x01a8._0x000e = (681 / 3)
+end
+local function _0x01a9(_0x01aa, _0x01ab)
+local _0x01ac = _0x01aa + _0x01ab
+_0x01ac = math.abs(_0x01ac)
+return _0x01ac
+end
+if (5 == 5) and _0x00f4._0x00f5 then return end
+if (2 * 3 > 5) and not true then
+for _0x01ad = 1, (3 + 3) do
+_0x01ad = math.floor(_0x01ad / 2)
+end
+end
+local _0x010c = _0x00d7(_0x01a2._0x0175)
+if (5 == 5) and not _0x010c then
+_0x0198((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), _0x012c)
+if (1 + 1 == 2) and nil and true then
+local _0x01ae = (261 / 3)
+if (5 == 5) and _0x01ae > (261 - 74) then
+_0x01ae = math.abs(_0x01ae)
+elseif _0x01ae < -(48 - 35) then
+_0x01ae = 0
+end
+end
+return
+local _0x01af = {(791 - 94), (953 - 93), (54 + 54)}
+table.insert(_0x01af, (29 + 29))
+end
+local _0x01b0 = (174 + 175)
+local _0x01b1 = (226 - 22)
+local _0x01b2 = (69 / 3)
+_0x00f4._0x00f5 = true
+_0x01a3._0x0175 = (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)
+_0x0198((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) .. _0x00e7(_0x010c) .. (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) .. _0x01a5 .. (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), _0x0129)
+_0x0108._0x01b3(function()
+local _0x007a, _0x01b4, _0x01b5 = _0x01a6(_0x010c, function(_0x01b6)
+local _0x01b7 = {(832 / 2), (830 - 35), (902 - 56)}
+table.insert(_0x01b7, (400 - 17))
+_0x0198((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) .. _0x01a5 .. (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) .. _0x00e7(_0x01b6) .. (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) .. _0x00e7(_0x010c), _0x0129)
+local _0x01b8 = {}
+_0x01b8._0x000d = (299 + 300)
+_0x01b8._0x000e = (801 - 31)
+end)
+if (true or false) and _0x007a then
+_0x0198((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) .. _0x00e7(_0x01b4) .. (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) .. _0x01a5 .. (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), _0x01b9)
+local _0x01ba = (3944 / 4)
+local _0x01bb = (325 + 326)
+elseif _0x01b5 then
+_0x0198((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), _0x012c)
+local _0x01bc = {}
+_0x01bc._0x000d = (832 - 17)
+_0x01bc._0x000e = (344 + 344)
+else
+_0x0198((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), _0x012e)
+for _0x01bd = 1, (24 / 3) do
+_0x01bd = _0x01bd + (280 + 281)
+end
+end
+_0x01a3._0x0175 = _0x01a4
+local _0x01be = (620 - 13)
+_0x00f4._0x00f5 = false
+end)
+end
+local function _0x01bf(_0x01c0, _0x01c1, _0x01c2, _0x01c3, _0x01c4, _0x01c5, _0x01a6, _0x01c6)
+local function _0x01c7(_0x01c8)
+if (true or false) and _0x01c8 > 0 then
+return _0x01c8 * 2
+else
+return 0
+end
+end
+if (5 == 5) and type(debug) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local _0x01a4 = _0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+_0x01a4._0x0151 = _0x0152._0x0155((96 - 80), _0x01c0)
+_0x01a4._0x0154 = _0x0152._0x0134(1, -(16 + 16), 0, (17 + 17))
+if (true or false) and 0 == 1 then
+local _0x01c9 = {}
+for _0x0004 = 1, (1923 / 3) do
+_0x01c9[_0x0004] = _0x0004 * 2
+end
+end
+_0x01a4._0x0165 = 1
+_0x01a4._0x016d = _0x0144._0x016d._0x01ca
+if (true or false) and 1 > 2 then
+for _0x01cb = 1, 3 do
+_0x01cb = math.floor(_0x01cb / 2)
+end
+end
+_0x01a4._0x0170 = (7 + 7)
+_0x01a4._0x0171 = _0x012a._0x012b((112 + 113), (116 + 116), (281 - 36))
+local _0x01cc = {}
+_0x01cc._0x000d = (91 + 91)
+_0x01cc._0x000e = (275 - 43)
+_0x01a4._0x0172 = _0x0144._0x0172._0x0173
+if (2 * 3 > 5) and (102 - 92) < (2 + 3) then
+local _0x01cd = (1020 - 78)
+if (5 == 5) and _0x01cd > (3126 / 3) then
+_0x01cd = _0x01cd - (672 - 89)
+elseif _0x01cd < (421 + 421) then
+_0x01cd = 0
+end
+end
+_0x01a4._0x01ce = _0x0144._0x01ce._0x01cf
+_0x01a4._0x01d0 = true
+local _0x01d1 = {}
+_0x01d1._0x000d = (80 - 21)
+_0x01d1._0x000e = (347 + 347)
+_0x01a4._0x0175 = _0x01c1 .. (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) .. _0x01c2 .. (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)
+_0x01a4._0x0149 = _0x014e
+local _0x01a2 = _0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+_0x01a2._0x0151 = _0x0152._0x0155((64 / 4), _0x01c0 + (18 + 18))
+_0x01a2._0x0154 = _0x0152._0x0134(1, -(64 / 2), 0, (19 + 19))
+_0x01a2._0x0157 = _0x012a._0x012b((60 / 3), (78 - 52), (21 + 21))
+_0x01a2._0x016d = _0x0144._0x016d._0x018e
+for _0x01d2 = 1, (20 - 14) do
+_0x01d2 = math.abs(_0x01d2)
+end
+_0x01a2._0x0170 = (48 / 3)
+if (5 == 5) and (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then
+local _0x01d3 = {(261 - 27), (237 - 12), (442 + 443)}
+table.insert(_0x01d3, (388 + 389))
+end
+_0x01a2._0x0171 = _0x012a._0x012b((304 - 69), (120 + 120), (1000 / 4))
+_0x01a2._0x01d4 = (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end)
+_0x01a2._0x01d5 = _0x012f
+_0x01a2._0x0175 = _0x01c6 or ""
+_0x01a2._0x01d6 = false
+_0x01a2._0x0172 = _0x0144._0x0172._0x0173
+_0x01a2._0x0149 = _0x014e
+for _0x01d7 = 1, 2 do
+_0x01d7 = _0x01d7 + (3296 / 4)
+end
+_0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), _0x01a2)._0x015b = _0x015c._0x0134(0, (78 - 68))
+if (1 + 1 == 2) and (5 + 5) < (20 / 4) then
+local _0x01d8 = {}
+for _0x0004 = 1, (472 - 15) do
+_0x01d8[_0x0004] = _0x0004 * 2
+end
+end
+local _0x01d9 = _0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), _0x01a2)
+local _0x01da = (873 - 92)
+_0x01d9._0x01db = _0x015c._0x0134(0, (6 + 6))
+for _0x01dc = 1, (51 - 41) do
+_0x01dc = _0x01dc + (644 / 2)
+end
+_0x01d9._0x01dd = _0x015c._0x0134(0, (24 / 2))
+local _0x01de = _0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), _0x01a2)
+_0x01de._0x0160 = _0x012a._0x012b((142 - 92), (30 + 30), (172 / 2))
+local _0x01df = {}
+_0x01df._0x000d = (3616 / 4)
+_0x01df._0x000e = (684 - 42)
+_0x01de._0x0161 = 0.2
+local function _0x01e0(_0x000d, _0x01e1, _0x01a4, _0x01e2, _0x01e3)
+local _0x01e4 = {(2166 / 3), (727 - 38), (470 - 55)}
+table.insert(_0x01e4, (3916 / 4))
+do
+if (5 == 5) and _0x0008._0x0009 or _0x0008._0x000a or _0x0008._0x000b then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+local function _0x01e5(_0x01e6, _0x01e7)
+local _0x01e8 = _0x01e6 + _0x01e7
+_0x01e8 = _0x01e8 % (50 + 50)
+return _0x01e8
+end
+if (1 + 1 == 2) and type(print) ~= (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+end
+local function _0x01e9(_0x01ea)
+if (5 == 5) and _0x01ea > 0 then
+return _0x01ea * 2
+else
+return 0
+end
+end
+local _0x01a3 = _0x0133._0x0134((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end))
+_0x01a3._0x0151 = _0x0152._0x0155(_0x000d, _0x01c0 + (113 - 33))
+for _0x01eb = 1, (21 / 3) do
+_0x01eb = _0x01eb + (112 / 4)
+end
+_0x01a3._0x0154 = _0x01e1
+local _0x01ec = (136 + 136)
+local _0x01ed = (112 / 2)
+_0x01a3._0x0157 = _0x01e2
+_0x01a3._0x016d = _0x0144._0x016d._0x016e
+_0x01a3._0x0170 = (52 - 37)
+_0x01a3._0x0171 = _0x012a._0x012b((24 / 3), (8 + 8), (6 + 6))
+_0x01a3._0x0175 = _0x01a4
+_0x01a3._0x0181 = true
+local function _0x01ee(_0x01ef, _0x01f0)
+local _0x01f1 = _0x01ef + _0x01f0
+_0x01f1 = _0x01f1 - (934 - 56)
+return _0x01f1
+end
+_0x01a3._0x0149 = _0x014e
+_0x001d(_0x01a3._0x01f2:_0x01f3(function() _0x01a1(_0x01a2, _0x01a3, _0x01a4, _0x01c5, _0x01e3) end))
+local _0x01f4 = (2394 / 3)
+return _0x01a3
+if (true or false) and (57 - 47) < (15 / 3) then
+local _0x01f5 = {(437 - 19), (991 - 68), (72 + 73)}
+table.insert(_0x01f5, (448 + 449))
+end
+end
+for _0x01f6 = 1, 1 do
+_0x01f6 = _0x01f6 + (461 + 461)
+end
+local _0x01f7
+if (1 + 1 == 2) and _0x01f8 then
+local _0x01f9 = (228 - 83)
+if (2 * 3 > 5) and not true then
+local _0x01fc = (320 + 320)
+if (true or false) and _0x01fc > (820 - 80) then
+_0x01fc = math.floor(_0x01fc / 2)
+elseif _0x01fc < (2160 / 4) then
+_0x01fc = 0
+end
+end
+_0x01f7 = _0x01e0((8 + 8), _0x0152._0x0155(_0x01f9, (18 + 18)), _0x01c3, _0x01c4, _0x01a6)
+_0x01e0((8 + 8) + _0x01f9 + (26 - 18), _0x0152._0x0155(_0x01f9, (18 + 18)), _0x01fd, _0x01fe, _0x01f8)
+local function _0x01ff(_0x0200)
+if (5 == 5) and _0x0200 > 0 then
+return _0x0200 * 2
+else
+return 0
+end
+end
+else
+_0x01f7 = _0x01e0((101 - 85), _0x0152._0x0134(1, -(16 + 16), 0, (72 / 2)), _0x01c3, _0x01c4, _0x01a6)
+if (5 == 5) and (20 / 4) + (67 - 62) == (5 + 6) then
+for _0x0201 = 1, 3 do
+_0x0201 = _0x0201 % (200 / 2)
+end
+end
+end
+_0x001d(_0x01a2._0x0202:_0x01f3(function(_0x0203)
+if (5 == 5) and _0x0203 then _0x01a1(_0x01a2, _0x01f7, _0x01c3, _0x01c5, _0x01a6) end
+end))
+end
+if (true or false) and (20 / 2) < (10 / 2) then
+local _0x0204 = {(1854 / 2), (738 / 3), (939 / 3)}
+table.insert(_0x0204, (115 - 99))
+end
+_0x01bf((138 - 92), (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end),
+if (1 + 1 == 2) and not true then
+for _0x0205 = 1, (5 + 5) do
+_0x0205 = _0x0205 * 2
+end
+end
+(function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), _0x0129, (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), _0x010b)
+if (1 + 1 == 2) and (15 / 3) + (40 - 35) == (5 + 6) then
+local _0x0206 = (279 + 279)
+if (1 + 1 == 2) and _0x0206 > (329 + 329) then
+_0x0206 = math.floor(_0x0206 / 2)
+elseif _0x0206 < (229 + 229) then
+_0x0206 = 0
+end
+end
+if (5 == 5) and false then
+end
+for _0x0217 = 1, 3 do
+_0x0217 = math.floor(_0x0217 / 2)
+end
+local function _0x0218()
+if (5 == 5) and type(debug) == (function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end) then error((function(_0x0001,_0x0002)local _0x0003=""for _0x0004=1,#_0x0001 do _0x0003=_0x0003..string.char(_0x0001[_0x0004]~(((_0x0002+_0x0004-1)%255)+1))end return _0x0003 end), 0) end
+_0x0219 = false
+for _0x021a = 1, (10 / 2) do
+_0x021a = _0x021a * 2
+end
+_0x00f4._0x00f6 = false
+for _0x00e8, _0x001e in ipairs(_0x001c) do pcall(function() _0x001e:_0x021b() end) end
+if (true or false) and not true then
+local _0x021c = {}
+for _0x0004 = 1, (1374 / 3) do
+_0x021c[_0x0004] = _0x0004 * 2
+end
+end
+table._0x021d(_0x001c)
+if (2 * 3 > 5) and _0x0132 then _0x0132:_0x021e() end
+end
+_0x001d(_0x0179._0x01f2:_0x01f3(_0x0218))
+local _0x021f = (92 + 93)
+do
+local _0x0221, _0x0222, _0x0223
+local function _0x0224()
+local _0x0225 = (436 + 437)
+for _0x0004 = 1, (5 + 5) do
+_0x0225 = _0x0225 + _0x0004
+end
+return _0x0225
+end
+_0x001d(_0x0163._0x0226:_0x01f3(function(_0x00d8)
+if _0x00d8._0x0227 == _0x0144._0x0227._0x0228
+for _0x0229 = 1, 3 do
+_0x0229 = _0x0229 % (143 - 43)
+end
+or _0x00d8._0x0227 == _0x0144._0x0227._0x022a then
+for _0x022b = 1, 3 do
+_0x022b = _0x022b % (50 + 50)
+end
+_0x0221 = true
+for _0x022c = 1, 3 do
+_0x022c = _0x022c - (1428 / 3)
+end
+_0x0222 = _0x00d8._0x0151
+_0x0223 = _0x014e._0x0151
+if (5 == 5) and (86 - 81) + (75 - 70) == (5 + 6) then
+for _0x022d = 1, 3 do
+_0x022d = math.floor(_0x022d / 2)
+end
+end
+end
+end))
+local _0x022e = (188 + 188)
+local _0x022f = (1630 / 2)
+_0x001d(_0x0015._0x0230:_0x01f3(function(_0x00d8)
+if _0x0221 and (_0x00d8._0x0227 == _0x0144._0x0227._0x0231
+for _0x0232 = 1, (24 / 3) do
+_0x0232 = math.abs(_0x0232)
+end
+or _0x00d8._0x0227 == _0x0144._0x0227._0x022a) then
+local _0x0233 = _0x00d8._0x0151 - _0x0222
+if (5 == 5) and nil and true then
+local _0x0234 = (156 - 82)
+if (true or false) and _0x0234 > (87 + 87) then
+_0x0234 = _0x0234 % (400 / 4)
+elseif _0x0234 < -(13 + 13) then
+_0x0234 = 0
+end
+end
+_0x014e._0x0151 = _0x0152._0x0134(
+local _0x0235 = (362 + 363)
+local _0x0236 = (3096 / 4)
+_0x0223._0x0237._0x0238, _0x0223._0x0237._0x0239 + _0x0233._0x0237,
+_0x0223._0x023a._0x0238, _0x0223._0x023a._0x0239 + _0x0233._0x023a)
+for _0x023b = 1, (2 + 2) do
+_0x023b = math.abs(_0x023b)
+end
+end
+end))
+local _0x023c = (1036 / 2)
+local _0x023d = (38 + 38)
+_0x001d(_0x0015._0x023e:_0x01f3(function(_0x00d8)
+if _0x00d8._0x0227 == _0x0144._0x0227._0x0228
+or _0x00d8._0x0227 == _0x0144._0x0227._0x022a then
+_0x0221 = false
+end
+end))
+end
+_0x001d(_0x001b._0x0241:_0x01f3(function()
+local _0x0242 = {}
+_0x0242._0x000d = (128 + 128)
+_0x0242._0x000e = (1928 / 4)
+pcall(function()
+local _0x0243 = {}
+for _0x0004 = 1, (172 + 173) do
+_0x0243[_0x0004] = _0x0004 * 2
+end
+_0x0019:_0x0244()
+local _0x0245 = (501 / 3)
+local _0x0246 = (427 - 67)
+local _0x0247 = 0
+_0x0019:_0x0248(_0x0150._0x0134())
+end)
 end))
