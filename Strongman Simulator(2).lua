@@ -65,7 +65,6 @@ local function md5(msg)
     return hexle(a0) .. hexle(b0) .. hexle(c0) .. hexle(d0)
 end
 
-
 local function resolveRemote(friendly)
     local jid = game.JobId
     local name = md5(friendly .. (jid == "" and "00000000-0000-0000-0000-000000000000" or jid))
@@ -111,47 +110,71 @@ end
 local function readEnergy() return readCurrency(GIVE_KEY) end
 local function readKnivsta() return readCurrency("Knivsta") end
 
+---------------------------------------------------------------------- 
+-- Parsing jumlah: 1k · 1000 · 1.5m · 1sx · 1sp · 2kk · 1.000.000
+---------------------------------------------------------------------- 
 local SUFFIX = {
-    -- (kode suffix tetap sama)
-    -- ... (kode suffix tidak diubah)
+    [""] = 1,
+    k = 1e3, m = 1e6, b = 1e9, t = 1e12,
+    qd = 1e15, qn = 1e18, sx = 1e21, sp = 1e24, oc = 1e27, no = 1e30,
+    dc = 1e33, ud = 1e36, dd = 1e39, td = 1e42, qad = 1e45, qnd = 1e48,
+    sxd = 1e51, spd = 1e54, ocd = 1e57, nod = 1e60,
+    vg = 1e63, uvg = 1e66, dvg = 1e69, tvg = 1e72, qavg = 1e75,
+    qnvg = 1e78, sxvg = 1e81, spvg = 1e84, ocvg = 1e87, novg = 1e90,
+    kk = 1e6, kkk = 1e9, q = 1e15, qa = 1e15, qi = 1e18,
+    thousand = 1e3, million = 1e6, billion = 1e9, trillion = 1e12,
 }
 
 local function parseAmount(input)
-    -- (kode parseAmount tetap sama)
-    -- ... (kode parseAmount tidak diubah)
+    if type(input) ~= "string" then return nil end
+    local s = input:lower():gsub("%s+", ""):gsub(",", ""):gsub("_", "")
+    if s == "" then return nil end
+    local num, suf = s:match("^(%d*%.?%d+)([a-z]*)$")
+    if not num then return nil end
+    local mult = SUFFIX[suf]
+    if not mult then return nil end
+    local n = tonumber(num)
+    if not n then return nil end
+    local total = n * mult
+    if total <= 0 then return nil end
+    return math.floor(total + 0.5)
 end
 
 local SCALE = {
-    -- (kode SCALE tetap sama)
+    {1e90, "NoVg"}, {1e87, "OcVg"}, {1e84, "SpVg"}, {1e81, "SxVg"}, {1e78, "QnVg"}, {1e75, "QaVg"},
+    {1e72, "TVg"}, {1e69, "DVg"}, {1e66, "UVg"}, {1e63, "Vg"}, {1e60, "NoD"}, {1e57, "OcD"},
+    {1e54, "SpD"}, {1e51, "SxD"}, {1e48, "QnD"}, {1e45, "QaD"}, {1e42, "Td"}, {1e39, "Dd"},
+    {1e36, "Ud"}, {1e33, "Dc"}, {1e30, "No"}, {1e27, "Oc"}, {1e24, "Sp"}, {1e21, "Sx"},
+    {1e18, "Qn"}, {1e15, "Qd"}, {1e12, "T"}, {1e9, "B"}, {1e6, "M"}, {1e3, "K"},
 }
 
 local function fmt(n)
-    -- (kode fmt tetap sama)
-    -- ... (kode fmt tidak diubah)
-end
-
--- Warna indikator
-local GOOD = Color3.fromRGB(34, 197, 94)
-local WARN = Color3.fromRGB(255, 190, 90)
-local BAD = Color3.fromRGB(255, 110, 110)
-local MUTED = Color3.fromRGB(150, 160, 185)
-
-local function setStatus(text, color)
-    if status then
-        status.Text = text
-        status.TextColor3 = color or MUTED
+    for _, e in ipairs(SCALE) do
+        if n >= e[1] then return string.format("%.2f%s", n / e[1], e[2]) end
     end
+    return tostring(math.floor(n))
 end
 
--- Fungsi utama: memastikan Knivsta dan memberikan energi
+---------------------------------------------------------------------- 
+-- Memberikan energi (minimal Knivsta, lewat bypass tanda, lalu konversi)
+---------------------------------------------------------------------- 
+local State = { busy = false, alive = true }
+
+local function ensureKnivsta(cv, needKnivsta)
+    if (readKnivsta() or 0) >= needKnivsta then return end
+    local energi = readEnergy() or 0
+    local mint = (energi + needKnivsta / RATIO + 1e6) * RATIO
+    pcall(function() cv:InvokeServer(CURRENCY_TARGET, -mint) end)
+    task.wait(0.6)
+end
+
 local function giveEnergy(target)
-    -- Simulasi proses pemberian energi
-    -- Di sini bisa dipanggil remote atau fungsi lain
-    -- Contoh simulasi:
-    task.wait(1) -- delay simulasi
-    -- Setelah selesai, update status dan indikator
-    setStatus("Energi berhasil diberikan ✅", GOOD)
-    return true, target -- return success dan jumlah energi yang diberikan
+    local cv = getConverter()
+    if not cv then return false, 0 end
+    local needKnivsta = target * RATIO
+    ensureKnivsta(cv, needKnivsta)
+    local ok = pcall(function() cv:InvokeServer(CURRENCY_TARGET, needKnivsta) end)
+    return ok, ok and target or 0
 end
 
 ---------------------------------------------------------------------- 
@@ -184,7 +207,7 @@ if syn and syn.protect_gui then pcall(syn.protect_gui, gui) end
 
 local window = Instance.new("Frame")
 window.AnchorPoint = Vector2.new(0.5, 0.5)
-window.Position = UDim2.new(0.5, 0, 0.5, 0) -- posisi tengah
+window.Position = UDim2.fromScale(0.5, 0.5)
 window.Size = UDim2.fromOffset(330, 328)
 window.BackgroundColor3 = Color3.fromRGB(0, 122, 255)
 window.BorderSizePixel = 0
@@ -237,38 +260,41 @@ status.TextWrapped = true
 status.Text = "Siap untuk pemberian"
 status.Parent = window
 
+local function setStatus(text, color)
+    status.Text = text
+    status.TextColor3 = color or MUTED
+end
+
+---------------------------------------------------------------------- 
+-- Fungsi utama
+---------------------------------------------------------------------- 
 local function runTask(box, btn, label, unit, worker)
-    if State and State.busy then return end
+    if State.busy then return end
     local target = parseAmount(box.Text)
     if not target then
         setStatus("Berapa energi yang ingin diberikan?", WARN)
         return
     end
-    if not State then State = {} end
     State.busy = true
     btn.Text = "Sedang Memberi..."
     setStatus("Memberi " .. fmt(target) .. " " .. unit .. "...", ACCENT)
     task.spawn(function()
-        local ok, given, needCapture = pcall(function()
-            return worker(target, function(done)
-                setStatus("Memberi " .. unit .. "... " .. fmt(done) .. " / " .. fmt(target), ACCENT)
-            end)
+        local ok, given, needCapture = worker(target, function(done)
+            setStatus("Memberi " .. unit .. "... " .. fmt(done) .. " / " .. fmt(target), ACCENT)
         end)
         if ok then
-            -- Jika berhasil
             setStatus("Selesai: +" .. fmt(given) .. " " .. unit .. " ✅", GOOD)
         elseif needCapture then
             setStatus("Silakan sentuh karakter sekali — aku akan tangkap remote-nya, lalu klik lagi", WARN)
         else
             setStatus("Gagal — remote tidak ditemukan / ditolak", BAD)
         end
-        wait(0.5) -- sedikit delay agar update terlihat di mobile
         btn.Text = label
-        if State then State.busy = false end
+        State.busy = false
     end)
 end
 
-local function buatBaris(yPos, ru, en, labelBtn, warnaBtn, satuan, worker)
+local function buatBaris(yPos, ru, en, labelBtn, warnaBtn, satuan, worker, teksDefault)
     local label = Instance.new("TextLabel")
     label.Position = UDim2.fromOffset(16, yPos)
     label.Size = UDim2.new(1, -32, 0, 34)
@@ -291,7 +317,7 @@ local function buatBaris(yPos, ru, en, labelBtn, warnaBtn, satuan, worker)
     box.TextColor3 = Color3.fromRGB(235, 240, 250)
     box.PlaceholderText = "0-Nan#Nan"
     box.PlaceholderColor3 = MUTED
-    box.Text = ""
+    box.Text = teksDefault or ""
     box.ClearTextOnFocus = false
     box.TextXAlignment = Enum.TextXAlignment.Left
     box.Parent = window
@@ -326,68 +352,81 @@ local function buatBaris(yPos, ru, en, labelBtn, warnaBtn, satuan, worker)
         btnUtama = tambahTombol(16, UDim2.new(1, -32, 0, 36), labelBtn, warnaBtn, worker)
     end
 
-    track(box.FocusLost:Connect(function(enter)
-        if enter then runTask(box, btnUtama, labelBtn, satuan, worker) end
-    end))
+    -- Setup input handling
+    local function setupInputHandlers()
+        -- Panggil runTask saat fokus hilang (khusus mobile)
+        box.FocusLost:Connect(function(enter)
+            if enter then runTask(box, btnUtama, labelBtn, satuan, worker) end
+        end)
+
+        -- Tambahkan juga event InputBegan dan InputEnded untuk deteksi selesai mengetik
+        track(box.InputBegan:Connect(function(input, gameProcessed)
+            if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard then
+                -- Bisa tambahkan logika jika ingin otomatis trigger saat Enter
+            end
+        end))
+    end
+
+    setupInputHandlers()
 end
 
--- Membuat baris untuk energi
 buatBaris(46, "Berapa energi?", "How much energy to give?",
     "Berikan Energi", ACCENT, "energi", giveEnergy)
 
 ---------------------------------------------------------------------- 
 -- Hilangkan bagian kekuatan dan GUI-nya
 ---------------------------------------------------------------------- 
--- Jika nanti ingin ditambah lagi, tinggal aktifkan kembali bagian ini
---[[
-buatBaris(166, "Berapa kekuatan?", "How much strength to give?",
-    "Berikan Kekuatan", STR, "kekuatan", giveStrength, "555555",
-    "Cepat", Color3.fromRGB(224, 108, 96), giveStrengthFast)
-]]--
+-- --[[
+-- buatBaris(166, "Berapa kekuatan?", "How much strength to give?",
+--     "Berikan Kekuatan", STR, "kekuatan", giveStrength, "555555",
+--     "Cepat", Color3.fromRGB(224, 108, 96), giveStrengthFast)
+-- onStrengthCaptured = function()
+--     setStatus("✅ Remote kekuatan siap — bisa dikirim", GOOD)
+-- end
+--]]--
 
 if false then
-    -- Kalau mau menambah bagian lagi nanti
+    -- Jika ingin menambah bagian kekuatan lagi nanti, aktifkan kembali
 end
 
 ---------------------------------------------------------------------- 
 -- Fungsi unload
 ---------------------------------------------------------------------- 
 local function unload()
-    if gui then gui:Destroy() end
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
     table.clear(connections)
+    if gui then gui:Destroy() end
 end
-track(closeBtn.MouseButton1Click:connect(unload))
+track(closeBtn.MouseButton1Click:Connect(unload))
 
 ---------------------------------------------------------------------- 
--- Drag GUI (support PC dan Mobile)
+-- Drag GUI
 ---------------------------------------------------------------------- 
 do
     local dragging, dragStart, startPos
-    local function startDrag(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+    track(titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = window.Position
         end
-    end
-    local function doDrag(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+    end))
+    track(UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch) then
             local d = input.Position - dragStart
             window.Position = UDim2.new(
                 startPos.X.Scale, startPos.X.Offset + d.X,
-                startPos.Y.Scale, startPos.Y.Offset + d.Y
-            )
+                startPos.Y.Scale, startPos.Y.Offset + d.Y)
         end
-    end
-    local function endDrag(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+    end))
+    track(UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
         end
-    end
-    track(titleBar.InputBegan:Connect(startDrag))
-    track(UserInputService.InputChanged:Connect(doDrag))
-    track(UserInputService.InputEnded:Connect(endDrag))
+    end))
 end
 
 ---------------------------------------------------------------------- 
