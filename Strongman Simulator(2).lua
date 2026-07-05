@@ -65,6 +65,7 @@ local function md5(msg)
     return hexle(a0) .. hexle(b0) .. hexle(c0) .. hexle(d0)
 end
 
+
 local function resolveRemote(friendly)
     local jid = game.JobId
     local name = md5(friendly .. (jid == "" and "00000000-0000-0000-0000-000000000000" or jid))
@@ -365,6 +366,23 @@ end
 
 buatBaris(46, "Berapa energi?", "How much energy to give?",
     "Berikan Energi", ACCENT, "energi", giveEnergy)
+
+---------------------------------------------------------------------- 
+-- Hilangkan bagian kekuatan dan GUI-nya
+---------------------------------------------------------------------- 
+-- --[[
+-- buatBaris(166, "Berapa kekuatan?", "How much strength to give?",
+--     "Berikan Kekuatan", STR, "kekuatan", giveStrength, "555555",
+--     "Cepat", Color3.fromRGB(224, 108, 96), giveStrengthFast)
+
+-- onStrengthCaptured = function()
+--     setStatus("✅ Remote kekuatan siap — bisa dikirim", GOOD)
+-- end
+--]]--
+
+if false then
+    -- Jika ingin menambah bagian kekuatan lagi nanti, aktifkan kembali
+end
 
 ---------------------------------------------------------------------- 
 -- Fungsi unload
